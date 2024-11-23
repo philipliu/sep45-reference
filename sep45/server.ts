@@ -6,7 +6,9 @@ const router = new Router();
 router
   .get("/challenge", async (context) => {
     const params = context.request.url.searchParams;
-    const request: ChallengeRequest = Object.fromEntries(params) as ChallengeRequest;
+    const request: ChallengeRequest = Object.fromEntries(
+      params,
+    ) as ChallengeRequest;
     const response: ChallengeResponse = await challenge(request);
     context.response.body = response;
   });

@@ -1,15 +1,16 @@
 import {
+  Address,
   BASE_FEE,
   Contract,
   Keypair,
+  nativeToScVal,
   Networks,
   SorobanRpc,
   TransactionBuilder,
   xdr,
-  nativeToScVal,
-  Address
 } from "npm:stellar-sdk";
 import { createHash } from "node:crypto";
+import { fetchSigningKey } from "./toml.ts";
 
 const webAuthContract = new Contract(Deno.env.get("WEB_AUTH_CONTRACT_ID")!);
 const serverKeypair = Keypair.fromSecret(Deno.env.get("SERVER_SIGNING_KEY")!);
@@ -33,15 +34,26 @@ export async function challenge(
 ): Promise<ChallengeResponse> {
   const sourceAccount = await rpc.getAccount(serverKeypair.publicKey());
 
+  const walletAddress = Address.fromString(request.address).toScVal();
+  let clientDomainAddress: Address | undefined = undefined;
+  if (request.client_domain !== undefined) {
+    const signingKey = await fetchSigningKey(request.client_domain);
+    console.log("Client domain signing key:", signingKey);
+    clientDomainAddress = Address.fromString(signingKey);
+  }
+  const clientDomainScVal = clientDomainAddress
+    ? clientDomainAddress.toScVal()
+    : xdr.ScVal.scvVoid();
+
   const args = [
-    Address.fromString(request.address).toScVal(), // address
-    xdr.ScVal.scvVoid(), // memo
-    xdr.ScVal.scvVoid(), // home_domain
-    xdr.ScVal.scvVoid(), // web_auth_domain
-    xdr.ScVal.scvVoid(), // client_domain
-    xdr.ScVal.scvVoid(), // client_domain_address
-    xdr.ScVal.scvVoid(), // nonce
-  ]
+    walletAddress,
+    nativeToScVal(request.memo),
+    nativeToScVal(request.home_domain),
+    nativeToScVal(request.home_domain),
+    nativeToScVal(request.client_domain),
+    clientDomainScVal,
+    xdr.ScVal.scvVoid(), // TODO: consume nonce
+  ];
   const builtTransaction = new TransactionBuilder(sourceAccount, {
     fee: BASE_FEE,
     networkPassphrase: Networks.TESTNET,
@@ -58,7 +70,6 @@ export async function challenge(
     const result = simulatedTransaction.result!;
     authEntries = result.auth;
   } else {
-    console.info("Transaction simulation failed:", simulatedTransaction);
     throw new Error("Transaction simulation failed");
   }
 
