@@ -19,7 +19,7 @@ export async function fetchSigningKey(domain: string): Promise<string> {
     ?.replace(/"/g, "");
 
   if (!signingKey) {
-    throw new Error("WEB_AUTH_SIGNING_KEY not found in TOML file");
+    throw new Error("SIGNING_KEY not found in TOML file");
   }
 
   return signingKey;
