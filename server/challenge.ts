@@ -166,13 +166,13 @@ export async function getToken(
   }
 
   const webAuthDomain = scValToNative(args[3]);
-  const memo = scValToNative(args[1]);
+  const account = [scValToNative(args[0]), scValToNative(args[1])].join(":");
   const clientDomain = scValToNative(args[4]);
   const homeDomain = scValToNative(args[2]);
 
   const token = jwt.sign({
     iss: webAuthDomain,
-    sub: memo,
+    sub: account,
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + 300,
     jti: createHash("sha256").update(Buffer.from(invokeOp.toXDR())).digest(

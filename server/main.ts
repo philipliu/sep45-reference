@@ -19,7 +19,7 @@ router
     const response: ChallengeResponse = await getChallenge(request);
     context.response.body = response;
   })
-  .post("/token", async (context) => {
+  .post("/challenge", async (context) => {
     const body = await context.request.body.json();
     const request: TokenRequest = body;
     const response: TokenResponse = await getToken(request);

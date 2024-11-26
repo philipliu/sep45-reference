@@ -10,7 +10,7 @@ async function signAsClient(
   authEntry: xdr.SorobanAuthorizationEntry,
 ): Promise<xdr.SorobanCredentials> {
   const keypair = Keypair.fromSecret(Deno.env.get("WALLET_SIGNER")!);
-  const validUntilLedgerSeq = (await rpc.getLatestLedger()).sequence + 10;
+  const validUntilLedgerSeq = (await rpc.getLatestLedger()).sequence + 1;
   const networkPassphrase = "Test SDF Network ; September 2015";
 
   const result = await authorizeEntry(
