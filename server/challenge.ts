@@ -1,5 +1,6 @@
 import {
   Address,
+  authorizeEntry,
   BASE_FEE,
   Contract,
   Keypair,
@@ -17,26 +18,27 @@ import jwt from "npm:jsonwebtoken";
 import { generateNonce, verifyNonce } from "./nonce.ts";
 
 const webAuthContract = new Contract(Deno.env.get("WEB_AUTH_CONTRACT_ID")!);
-const serverKeypair = Keypair.fromSecret(Deno.env.get("SERVER_SIGNING_KEY")!);
+const sourceKeypair = Keypair.fromSecret(Deno.env.get("SOURCE_SIGNING_KEY")!);
+const sep10SigningKeypair = Keypair.fromSecret(
+  Deno.env.get("SERVER_SIGNING_KEY")!,
+);
 const rpc = new SorobanRpc.Server(Deno.env.get("RPC_URL")!);
 
 export type ChallengeRequest = {
   address: string;
-  memo: string | undefined;
   home_domain: string | undefined;
   client_domain: string | undefined;
 };
 
 export type ChallengeResponse = {
   authorization_entries: string[];
-  server_signatures: string[];
   network_passphrase: string;
 };
 
 export async function getChallenge(
   request: ChallengeRequest,
 ): Promise<ChallengeResponse> {
-  const sourceAccount = await rpc.getAccount(serverKeypair.publicKey());
+  const sourceAccount = await rpc.getAccount(sourceKeypair.publicKey());
 
   const walletAddress = Address.fromString(request.address).toScVal();
   let clientDomainAddress: Address | undefined = undefined;
@@ -47,12 +49,12 @@ export async function getChallenge(
   const clientDomainScVal = clientDomainAddress
     ? clientDomainAddress.toScVal()
     : xdr.ScVal.scvVoid();
-  const nonce = await generateNonce(request.address + request.memo);
+  const nonce = await generateNonce(request.address);
 
   const args = [
     walletAddress,
-    nativeToScVal(request.memo),
     nativeToScVal(request.home_domain),
+    nativeToScVal(Address.fromString(sep10SigningKeypair.publicKey())),
     nativeToScVal(request.home_domain),
     nativeToScVal(request.client_domain),
     clientDomainScVal,
@@ -77,26 +79,38 @@ export async function getChallenge(
     throw new Error("Transaction simulation failed");
   }
 
-  // Sign the hashes of the authorization entries
-  const signatures = authEntries.map((entry) => {
-    // Get the SHA-256 hash of the entry and sign it
-    const hash = createHash("sha256").update(entry.toXDR()).digest("hex");
-    return serverKeypair.sign(Buffer.from(hash, "hex")).toString("hex");
+  // Sign the server's authorization entry
+  const finalAuthEntries = authEntries.map(async (entry) => {
+    if (
+      entry.credentials().switch() ===
+        xdr.SorobanCredentialsType.sorobanCredentialsAddress() &&
+      entry.credentials().address().address().switch() ===
+        xdr.ScAddressType.scAddressTypeAccount()
+    ) {
+      const validUntilLedgerSeq = (await rpc.getLatestLedger()).sequence + 1;
+      const signed = await authorizeEntry(
+        entry,
+        sep10SigningKeypair,
+        validUntilLedgerSeq,
+        Networks.TESTNET,
+      );
+      return signed;
+    }
+    return entry;
   });
 
+  const resolvedEntries = await Promise.all(finalAuthEntries);
+
   return {
-    authorization_entries: authEntries.map((entry) =>
+    authorization_entries: resolvedEntries.map((entry) =>
       entry.toXDR().toString("base64")
     ),
-    server_signatures: signatures,
     network_passphrase: Networks.TESTNET,
   } as ChallengeResponse;
 }
 
 export type TokenRequest = {
   authorization_entries: string[];
-  server_signatures: string[];
-  credentials: string[];
 };
 
 export type TokenResponse = {
@@ -106,45 +120,30 @@ export type TokenResponse = {
 export async function getToken(
   request: TokenRequest,
 ): Promise<TokenResponse> {
-  // Validate the authorization entries
+  // Extract args from authorization entry
   const authEntries = request.authorization_entries.map((entry) =>
     xdr.SorobanAuthorizationEntry.fromXDR(Buffer.from(entry, "base64"))
   );
-  request.server_signatures.forEach((signature, index) => {
-    const entry = authEntries[index];
-    const hash = createHash("sha256").update(entry.toXDR()).digest();
-    if (!serverKeypair.verify(hash, Buffer.from(signature, "hex"))) {
-      throw new Error("Invalid signature");
-    }
-  });
-
-  // Extract args from authorization entry
   const args = authEntries[0].rootInvocation().function().contractFn().args();
 
   // Check if the nonce exist and is unused
   const nonce = scValToNative(args[6]);
-  const key = scValToNative(args[0]) + scValToNative(args[1]);
+  const key = scValToNative(args[0]);
   if (!(await verifyNonce(key, nonce))) {
     throw new Error("Invalid nonce");
   }
 
-  // Attach credentials to auth entries
-  const signedAuthEntries = request.credentials.map((credentialXdr, index) => {
-    const credential = xdr.SorobanCredentials.fromXDR(
-      Buffer.from(credentialXdr, "base64"),
-    );
-
-    return new xdr.SorobanAuthorizationEntry({
-      credentials: credential,
-      rootInvocation: authEntries[index].rootInvocation(),
-    });
-  });
-
   // Construct the transaction using the clients credentials
+  //
+  // Note: the server does not need to validate the authorization entries because the following
+  // scenarios are covered by simulation
+  // 1. if the server's signature is invalid
+  // 2. if the client's signature is missing
+  // 3. if the auth entries contain different arguments
   const invokeOp = webAuthContract.call("web_auth_verify", ...args);
-  invokeOp.body().invokeHostFunctionOp().auth(signedAuthEntries);
+  invokeOp.body().invokeHostFunctionOp().auth(authEntries);
 
-  const sourceAccount = await rpc.getAccount(serverKeypair.publicKey());
+  const sourceAccount = await rpc.getAccount(sep10SigningKeypair.publicKey());
   const builtTransaction = new TransactionBuilder(sourceAccount, {
     fee: BASE_FEE,
     networkPassphrase: Networks.TESTNET,

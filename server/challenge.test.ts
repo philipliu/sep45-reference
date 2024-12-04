@@ -8,18 +8,17 @@ const rpc = new SorobanRpc.Server(Deno.env.get("RPC_URL")!);
 
 async function signAsClient(
   authEntry: xdr.SorobanAuthorizationEntry,
-): Promise<xdr.SorobanCredentials> {
+): Promise<xdr.SorobanAuthorizationEntry> {
   const keypair = Keypair.fromSecret(Deno.env.get("WALLET_SIGNER")!);
   const validUntilLedgerSeq = (await rpc.getLatestLedger()).sequence + 1;
   const networkPassphrase = "Test SDF Network ; September 2015";
 
-  const result = await authorizeEntry(
+  return await authorizeEntry(
     authEntry,
     keypair,
     validUntilLedgerSeq,
     networkPassphrase,
   );
-  return result.credentials();
 }
 
 Deno.test("challenge without client domain", async () => {
@@ -32,22 +31,27 @@ Deno.test("challenge without client domain", async () => {
 
   const challenge = await getChallenge(challengeRequest);
 
-  assert(challenge.authorization_entries.length === 1);
-  assert(challenge.server_signatures.length === 1);
+  assert(challenge.authorization_entries.length === 2);
   assert(challenge.network_passphrase === "Test SDF Network ; September 2015");
 
   const authorizationEntry = Buffer.from(
     challenge.authorization_entries[0],
     "base64",
   );
-  const authorizationEntryXdr = xdr.SorobanAuthorizationEntry.fromXDR(
-    authorizationEntry,
+  const clientSignedAuthEntry = await signAsClient(
+    xdr.SorobanAuthorizationEntry.fromXDR(
+      authorizationEntry,
+    ),
   );
+  // The client should simulate the transaction with the authorization entries
+  // to check that the server signature is valid in addition to making sure that
+  // the transaction is not malicious.
 
   const tokenRequest = {
-    authorization_entries: challenge.authorization_entries,
-    server_signatures: challenge.server_signatures,
-    credentials: [(await signAsClient(authorizationEntryXdr)).toXDR("base64")],
+    authorization_entries: [
+      clientSignedAuthEntry.toXDR("base64"),
+      challenge.authorization_entries[1],
+    ],
   };
 
   const token = await getToken(tokenRequest);

@@ -33,14 +33,15 @@ impl WebAuthContract {
     pub fn web_auth_verify(
         _env: Env,
         address: Address,
-        _memo: Option<String>,            // IGNORED
-        _home_domain: Option<String>,     // IGNORED
+        _home_domain: Option<String>, // IGNORED
+        home_domain_address: Address,
         _web_auth_domain: Option<String>, // IGNORED
         _client_domain: Option<String>,   // IGNORED
         client_domain_address: Option<Address>,
         _nonce: Option<String>, // IGNORED, used by the Server to ensure challenge is unique
     ) {
         address.require_auth();
+        home_domain_address.require_auth();
         // Optional: require a signature from the client domain address
         if let Some(client_domain_address) = client_domain_address {
             client_domain_address.require_auth();
