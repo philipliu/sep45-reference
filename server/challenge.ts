@@ -1,5 +1,4 @@
 import {
-  Address,
   authorizeEntry,
   BASE_FEE,
   Contract,
@@ -25,8 +24,8 @@ const sep10SigningKeypair = Keypair.fromSecret(
 const rpc = new SorobanRpc.Server(Deno.env.get("RPC_URL")!);
 
 export type ChallengeRequest = {
-  address: string;
-  home_domain: string | undefined;
+  account: string;
+  home_domain: string;
   client_domain: string | undefined;
 };
 
@@ -40,25 +39,49 @@ export async function getChallenge(
 ): Promise<ChallengeResponse> {
   const sourceAccount = await rpc.getAccount(sourceKeypair.publicKey());
 
-  const walletAddress = Address.fromString(request.address).toScVal();
-  let clientDomainAddress: Address | undefined = undefined;
+  let clientDomainAddress: string | undefined = undefined;
   if (request.client_domain !== undefined) {
-    const signingKey = await fetchSigningKey(request.client_domain);
-    clientDomainAddress = Address.fromString(signingKey);
+    clientDomainAddress = await fetchSigningKey(request.client_domain);
   }
-  const clientDomainScVal = clientDomainAddress
-    ? clientDomainAddress.toScVal()
-    : xdr.ScVal.scvVoid();
-  const nonce = await generateNonce(request.address);
+  const nonce = await generateNonce(request.account);
+
+  const fields = [
+    new xdr.ScMapEntry({
+      key: nativeToScVal("account"),
+      val: nativeToScVal(request.account),
+    }),
+    ...(request.client_domain !== undefined
+      ? [
+        new xdr.ScMapEntry({
+          key: nativeToScVal("client_domain"),
+          val: nativeToScVal(request.client_domain),
+        }),
+        new xdr.ScMapEntry({
+          key: nativeToScVal("client_domain_address"),
+          val: nativeToScVal(clientDomainAddress),
+        }),
+      ]
+      : []),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("home_domain"),
+      val: nativeToScVal(request.home_domain),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("home_domain_address"),
+      val: nativeToScVal(sep10SigningKeypair.publicKey()),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("nonce"),
+      val: nativeToScVal(nonce),
+    }),
+    new xdr.ScMapEntry({
+      key: nativeToScVal("web_auth_domain"),
+      val: nativeToScVal(request.home_domain),
+    }),
+  ];
 
   const args = [
-    walletAddress,
-    nativeToScVal(request.home_domain),
-    nativeToScVal(Address.fromString(sep10SigningKeypair.publicKey())),
-    nativeToScVal(request.home_domain),
-    nativeToScVal(request.client_domain),
-    clientDomainScVal,
-    nativeToScVal(nonce),
+    xdr.ScVal.scvMap(fields),
   ];
   const builtTransaction = new TransactionBuilder(sourceAccount, {
     fee: BASE_FEE,
@@ -125,11 +148,17 @@ export async function getToken(
     xdr.SorobanAuthorizationEntry.fromXDR(Buffer.from(entry, "base64"))
   );
   const args = authEntries[0].rootInvocation().function().contractFn().args();
+  const argEntries = args[0].map()!;
 
   // Check if the nonce exist and is unused
-  const nonce = scValToNative(args[6]);
-  const key = scValToNative(args[0]);
-  if (!(await verifyNonce(key, nonce))) {
+  const nonce = scValToNative(
+    argEntries.find((entry) => entry.key().str().toString() === "nonce")!.val(),
+  );
+  const account = scValToNative(
+    argEntries.find((entry) => entry.key().str().toString() === "account")!
+      .val(),
+  );
+  if (!(await verifyNonce(account, nonce))) {
     throw new Error("Invalid nonce");
   }
 
@@ -164,10 +193,24 @@ export async function getToken(
     throw new Error("Transaction simulation failed");
   }
 
-  const webAuthDomain = scValToNative(args[3]);
-  const account = [scValToNative(args[0]), scValToNative(args[1])].join(":");
-  const clientDomain = scValToNative(args[4]);
-  const homeDomain = scValToNative(args[2]);
+  const webAuthDomain = scValToNative(
+    argEntries.find((entry) =>
+      entry.key().str().toString() === "web_auth_domain"
+    )!
+      .val(),
+  );
+  // The client domain is optional, only convert to scValToNative if it exists
+  const clientDomainArg = argEntries.find((entry) =>
+    entry.key().str().toString() === "client_domain"
+  );
+  const clientDomain = clientDomainArg !== undefined
+    ? scValToNative(clientDomainArg.val())
+    : undefined;
+
+  const homeDomain = scValToNative(
+    argEntries.find((entry) => entry.key().str().toString() === "home_domain")!
+      .val(),
+  );
 
   const token = jwt.sign({
     iss: webAuthDomain,

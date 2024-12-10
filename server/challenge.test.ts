@@ -10,7 +10,7 @@ async function signAsClient(
   authEntry: xdr.SorobanAuthorizationEntry,
 ): Promise<xdr.SorobanAuthorizationEntry> {
   const keypair = Keypair.fromSecret(Deno.env.get("WALLET_SIGNER")!);
-  const validUntilLedgerSeq = (await rpc.getLatestLedger()).sequence + 1;
+  const validUntilLedgerSeq = (await rpc.getLatestLedger()).sequence + 10;
   const networkPassphrase = "Test SDF Network ; September 2015";
 
   return await authorizeEntry(
@@ -23,7 +23,7 @@ async function signAsClient(
 
 Deno.test("challenge without client domain", async () => {
   const challengeRequest = {
-    address: Deno.env.get("WALLET_ADDRESS")!,
+    account: Deno.env.get("WALLET_ADDRESS")!,
     memo: "123",
     home_domain: "localhost:8080",
     client_domain: undefined,
