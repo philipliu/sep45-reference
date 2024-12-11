@@ -15,6 +15,7 @@ import { fetchSigningKey } from "./toml.ts";
 import { Buffer } from "node:buffer";
 import jwt from "npm:jsonwebtoken";
 import { generateNonce, verifyNonce } from "./nonce.ts";
+import xdrParser from "npm:@stellar/js-xdr";
 
 const webAuthContract = new Contract(Deno.env.get("WEB_AUTH_CONTRACT_ID")!);
 const sourceKeypair = Keypair.fromSecret(Deno.env.get("SOURCE_SIGNING_KEY")!);
@@ -30,7 +31,7 @@ export type ChallengeRequest = {
 };
 
 export type ChallengeResponse = {
-  authorization_entries: string[];
+  authorization_entries: string;
   network_passphrase: string;
 };
 
@@ -124,16 +125,22 @@ export async function getChallenge(
 
   const resolvedEntries = await Promise.all(finalAuthEntries);
 
+  const authEntriesType = new xdrParser.Array(
+    xdr.SorobanAuthorizationEntry,
+    resolvedEntries.length,
+  );
+  const writer = new xdrParser.XdrWriter();
+  authEntriesType.write(resolvedEntries, writer);
+  const xdrBuffer = writer.finalize();
+
   return {
-    authorization_entries: resolvedEntries.map((entry) =>
-      entry.toXDR().toString("base64")
-    ),
+    authorization_entries: xdrBuffer.toString("base64"),
     network_passphrase: Networks.TESTNET,
   } as ChallengeResponse;
 }
 
 export type TokenRequest = {
-  authorization_entries: string[];
+  authorization_entries: string;
 };
 
 export type TokenResponse = {
@@ -143,10 +150,18 @@ export type TokenResponse = {
 export async function getToken(
   request: TokenRequest,
 ): Promise<TokenResponse> {
-  // Extract args from authorization entry
-  const authEntries = request.authorization_entries.map((entry) =>
-    xdr.SorobanAuthorizationEntry.fromXDR(Buffer.from(entry, "base64"))
+  const readBuffer = Buffer.from(request.authorization_entries, "base64");
+  // TODO: this should use VarArray
+  const authEntriesType = new xdrParser.Array(
+    xdr.SorobanAuthorizationEntry,
+    2,
   );
+  const reader = new xdrParser.XdrReader(readBuffer);
+  const authEntries: xdr.SorobanAuthorizationEntry[] = authEntriesType.read(
+    reader,
+  );
+
+  // Extract args from authorization entry
   const args = authEntries[0].rootInvocation().function().contractFn().args();
   const argEntries = args[0].map()!;
 
