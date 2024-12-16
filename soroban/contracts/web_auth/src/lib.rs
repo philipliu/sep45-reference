@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, Address, BytesN, Env, Map, String,
+    contract, contracterror, contractimpl, contracttype, Address, BytesN, Env, Map, String, Symbol,
 };
 
 #[contracttype]
@@ -37,24 +37,22 @@ impl WebAuthContract {
         env.storage().instance().set(&DataKey::Admin, &admin);
     }
 
-    pub fn web_auth_verify(env: Env, args: Map<String, String>) -> Result<(), WebAuthError> {
-        if let Some(address) = args.get(String::from_str(&env, "account")) {
+    pub fn web_auth_verify(env: Env, args: Map<Symbol, String>) -> Result<(), WebAuthError> {
+        if let Some(address) = args.get(Symbol::new(&env, "account")) {
             let addr = Address::from_string(&address);
             addr.require_auth();
         } else {
             return Err(WebAuthError::MissingArgument);
         }
 
-        if let Some(home_domain_address) = args.get(String::from_str(&env, "home_domain_address")) {
+        if let Some(home_domain_address) = args.get(Symbol::new(&env, "home_domain_address")) {
             let home_domain_addr = Address::from_string(&home_domain_address);
             home_domain_addr.require_auth();
         } else {
             return Err(WebAuthError::MissingArgument);
         }
 
-        if let Some(client_domain_address) =
-            args.get(String::from_str(&env, "client_domain_address"))
-        {
+        if let Some(client_domain_address) = args.get(Symbol::new(&env, "client_domain_address")) {
             let client_domain_addr = Address::from_string(&client_domain_address);
             client_domain_addr.require_auth();
         }

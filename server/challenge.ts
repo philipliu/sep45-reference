@@ -48,35 +48,35 @@ export async function getChallenge(
 
   const fields = [
     new xdr.ScMapEntry({
-      key: nativeToScVal("account"),
+      key: xdr.ScVal.scvSymbol("account"),
       val: nativeToScVal(request.account),
     }),
     ...(request.client_domain !== undefined
       ? [
         new xdr.ScMapEntry({
-          key: nativeToScVal("client_domain"),
+          key: xdr.ScVal.scvSymbol("client_domain"),
           val: nativeToScVal(request.client_domain),
         }),
         new xdr.ScMapEntry({
-          key: nativeToScVal("client_domain_address"),
+          key: xdr.ScVal.scvSymbol("client_domain_address"),
           val: nativeToScVal(clientDomainAddress),
         }),
       ]
       : []),
     new xdr.ScMapEntry({
-      key: nativeToScVal("home_domain"),
+      key: xdr.ScVal.scvSymbol("home_domain"),
       val: nativeToScVal(request.home_domain),
     }),
     new xdr.ScMapEntry({
-      key: nativeToScVal("home_domain_address"),
+      key: xdr.ScVal.scvSymbol("home_domain_address"),
       val: nativeToScVal(sep10SigningKeypair.publicKey()),
     }),
     new xdr.ScMapEntry({
-      key: nativeToScVal("nonce"),
+      key: xdr.ScVal.scvSymbol("nonce"),
       val: nativeToScVal(nonce),
     }),
     new xdr.ScMapEntry({
-      key: nativeToScVal("web_auth_domain"),
+      key: xdr.ScVal.scvSymbol("web_auth_domain"),
       val: nativeToScVal(request.home_domain),
     }),
   ];
@@ -167,10 +167,10 @@ export async function getToken(
 
   // Check if the nonce exist and is unused
   const nonce = scValToNative(
-    argEntries.find((entry) => entry.key().str().toString() === "nonce")!.val(),
+    argEntries.find((entry) => entry.key().sym().toString() === "nonce")!.val(),
   );
   const account = scValToNative(
-    argEntries.find((entry) => entry.key().str().toString() === "account")!
+    argEntries.find((entry) => entry.key().sym().toString() === "account")!
       .val(),
   );
   if (!(await verifyNonce(account, nonce))) {
@@ -210,20 +210,20 @@ export async function getToken(
 
   const webAuthDomain = scValToNative(
     argEntries.find((entry) =>
-      entry.key().str().toString() === "web_auth_domain"
+      entry.key().sym().toString() === "web_auth_domain"
     )!
       .val(),
   );
   // The client domain is optional, only convert to scValToNative if it exists
   const clientDomainArg = argEntries.find((entry) =>
-    entry.key().str().toString() === "client_domain"
+    entry.key().sym().toString() === "client_domain"
   );
   const clientDomain = clientDomainArg !== undefined
     ? scValToNative(clientDomainArg.val())
     : undefined;
 
   const homeDomain = scValToNative(
-    argEntries.find((entry) => entry.key().str().toString() === "home_domain")!
+    argEntries.find((entry) => entry.key().sym().toString() === "home_domain")!
       .val(),
   );
 
