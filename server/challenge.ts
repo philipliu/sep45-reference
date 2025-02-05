@@ -58,7 +58,7 @@ export async function getChallenge(
           val: nativeToScVal(request.client_domain),
         }),
         new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("client_domain_address"),
+          key: xdr.ScVal.scvSymbol("client_domain_signer"),
           val: nativeToScVal(clientDomainAddress),
         }),
       ]
@@ -68,10 +68,6 @@ export async function getChallenge(
       val: nativeToScVal(request.home_domain),
     }),
     new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol("home_domain_address"),
-      val: nativeToScVal(sep10SigningKeypair.publicKey()),
-    }),
-    new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol("nonce"),
       val: nativeToScVal(nonce),
     }),
@@ -79,6 +75,11 @@ export async function getChallenge(
       key: xdr.ScVal.scvSymbol("web_auth_domain"),
       val: nativeToScVal(request.home_domain),
     }),
+    new xdr.ScMapEntry({
+      key: xdr.ScVal.scvSymbol("web_auth_domain_signer"),
+      val: nativeToScVal(sep10SigningKeypair.publicKey()),
+    }),
+
   ];
 
   const args = [

@@ -45,16 +45,16 @@ impl WebAuthContract {
             return Err(WebAuthError::MissingArgument);
         }
 
-        if let Some(home_domain_address) = args.get(Symbol::new(&env, "home_domain_address")) {
-            let home_domain_addr = Address::from_string(&home_domain_address);
-            home_domain_addr.require_auth();
+        if let Some(web_auth_domain_signer) = args.get(Symbol::new(&env, "web_auth_domain_signer")) {
+            let addr = Address::from_string(&web_auth_domain_signer);
+            addr.require_auth();
         } else {
             return Err(WebAuthError::MissingArgument);
         }
 
-        if let Some(client_domain_address) = args.get(Symbol::new(&env, "client_domain_address")) {
-            let client_domain_addr = Address::from_string(&client_domain_address);
-            client_domain_addr.require_auth();
+        if let Some(client_domain_signer) = args.get(Symbol::new(&env, "client_domain_signer")) {
+            let addr = Address::from_string(&client_domain_signer);
+            addr.require_auth();
         }
 
         Ok(())
