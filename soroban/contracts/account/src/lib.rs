@@ -39,7 +39,7 @@ pub struct Signature {
 }
 
 #[contracterror]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum AccountError {
     UnknownSigner = 1,
     TooManySignatures = 2,
@@ -64,6 +64,14 @@ impl CustomAccountInterface for Account {
         signatures: Self::Signature,
         _auth_context: Vec<Context>,
     ) -> Result<(), AccountError> {
+        if let Some(admin) = env
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::Admin)
+        {
+            admin.require_auth();
+        }
+
         if signatures.len() > 1 {
             return Err(AccountError::TooManySignatures);
         }
@@ -88,3 +96,5 @@ impl CustomAccountInterface for Account {
         Ok(())
     }
 }
+
+mod test;

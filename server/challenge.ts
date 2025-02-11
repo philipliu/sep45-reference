@@ -79,7 +79,6 @@ export async function getChallenge(
       key: xdr.ScVal.scvSymbol("web_auth_domain_signer"),
       val: nativeToScVal(sep10SigningKeypair.publicKey()),
     }),
-
   ];
 
   const args = [
@@ -112,7 +111,7 @@ export async function getChallenge(
       entry.credentials().address().address().switch() ===
         xdr.ScAddressType.scAddressTypeAccount()
     ) {
-      const validUntilLedgerSeq = (await rpc.getLatestLedger()).sequence + 1;
+      const validUntilLedgerSeq = (await rpc.getLatestLedger()).sequence + 1000;
       const signed = await authorizeEntry(
         entry,
         sep10SigningKeypair,
@@ -155,7 +154,7 @@ export async function getToken(
   // TODO: this should use VarArray
   const authEntriesType = new xdrParser.Array(
     xdr.SorobanAuthorizationEntry,
-    2,
+    3,
   );
   const reader = new xdrParser.XdrReader(readBuffer);
   const authEntries: xdr.SorobanAuthorizationEntry[] = authEntriesType.read(
@@ -206,6 +205,7 @@ export async function getToken(
   if ("result" in simulatedTransaction) {
     // Simulation was successful
   } else {
+    console.log(simulatedTransaction);
     throw new Error("Transaction simulation failed");
   }
 
