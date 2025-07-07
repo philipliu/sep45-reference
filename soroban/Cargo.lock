@@ -3,11 +3,25 @@
 version = 4
 
 [[package]]
-name = "account"
+name = "account-simple"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "account-with-require-auth"
 version = "0.0.0"
 dependencies = [
  "ed25519-dalek 1.0.1",
  "rand 0.7.3",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "account-with-require-auth-for-args"
+version = "0.1.0"
+dependencies = [
  "soroban-sdk",
 ]
 

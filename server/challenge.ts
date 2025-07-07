@@ -125,9 +125,9 @@ export async function getChallenge(
 
   const resolvedEntries = await Promise.all(finalAuthEntries);
 
-  const authEntriesType = new xdrParser.Array(
+  const authEntriesType = new xdrParser.VarArray(
     xdr.SorobanAuthorizationEntry,
-    resolvedEntries.length,
+    2147483647,
   );
   const writer = new xdrParser.XdrWriter();
   authEntriesType.write(resolvedEntries, writer);
@@ -151,10 +151,9 @@ export async function getToken(
   request: TokenRequest,
 ): Promise<TokenResponse> {
   const readBuffer = Buffer.from(request.authorization_entries, "base64");
-  // TODO: this should use VarArray
-  const authEntriesType = new xdrParser.Array(
+  const authEntriesType = new xdrParser.VarArray(
     xdr.SorobanAuthorizationEntry,
-    3,
+    2147483647,
   );
   const reader = new xdrParser.XdrReader(readBuffer);
   const authEntries: xdr.SorobanAuthorizationEntry[] = authEntriesType.read(
@@ -233,7 +232,7 @@ export async function getToken(
     sub: account,
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + 300,
-    jti: createHash("sha256").update(Buffer.from(invokeOp.toXDR())).digest(
+    jti: createHash("sha256").update(invokeOp.toXDR()).digest(
       "hex",
     ),
     client_domain: clientDomain,
